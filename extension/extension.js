@@ -25,6 +25,12 @@ import {
     normalizeClipboardHistoryKey,
 } from './clipboard-utils.js';
 import {classifyMedia} from './music-classifier.js';
+import {
+    describeCapture,
+    formatCaptureSchedule,
+    formatCaptureTime,
+    parseQuickCapture,
+} from './quick-capture.js';
 
 const MPRIS_PREFIX = 'org.mpris.MediaPlayer2.';
 const MPRIS_PATH = '/org/mpris/MediaPlayer2';
@@ -101,6 +107,7 @@ const PAGE_WIDTHS = {
     settings: 860,
 };
 const OPEN_HEIGHT = 256;
+const QUICK_CAPTURE_WIDTH = 540;
 const HEADER_HEIGHT = 42;
 const TABBAR_HEIGHT = 46;
 const DRAG_THRESHOLD = 10;
@@ -203,9 +210,12 @@ const THEMES = [
 ];
 
 function taskScheduleKey(task) {
-    return Number.isInteger(task?.due) && task?.dueDate
-        ? `${task.dueDate} ${String(task.due).padStart(4, '0')}`
-        : '9999-99-99 9999';
+    const date = typeof task?.dueDate === 'string' ? task.dueDate : null;
+    if (Number.isInteger(task?.due) && date)
+        return `${date} ${String(task.due).padStart(4, '0')}`;
+    if (date)
+        return `${date} 0000`;
+    return '9999-99-99 9999';
 }
 
 function distractionLabel(identity) {
@@ -592,6 +602,14 @@ export default class PerdanaIslandExtension extends Extension {
         this._migrateLegacyData();
         this._preferences = this._loadPreferences();
         this._activePage = this._visiblePages()[0]?.key || 'settings';
+        this._quickCapture = false;
+        this._quickCaptureNotice = '';
+        this._quickCaptureDraft = '';
+        this._captureEntry = null;
+        this._capturePreviewLabel = null;
+        this._captureNoticeLabel = null;
+        this._captureOpenedByShortcut = false;
+        this._capturePinnedBefore = false;
         this._tasks = this._loadTasks();
         this._focusLog = this._loadFocusLog();
         this._prayerCache = this._loadPrayerCache();
@@ -622,6 +640,13 @@ export default class PerdanaIslandExtension extends Extension {
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             () => this._toggleIslandVisibility()
+        );
+        Main.wm.addKeybinding(
+            'quick-capture',
+            this._keybindingSettings,
+            Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
+            () => this._openQuickCapture()
         );
         this._applyTheme();
         this._applyGlassPreference();
@@ -1257,6 +1282,7 @@ export default class PerdanaIslandExtension extends Extension {
         this._keepAwakeGeneration++;
         this._releaseKeepAwake();
         Main.wm.removeKeybinding('toggle-island-visibility');
+        Main.wm.removeKeybinding('quick-capture');
         this._keybindingSettings = null;
         if (this._stageSignal) {
             global.stage.disconnect(this._stageSignal);
@@ -1642,6 +1668,10 @@ export default class PerdanaIslandExtension extends Extension {
         this._clockLabel = makeLabel('', 'perdana-island__clock');
         this._header.add_child(this._clockLabel);
         this._content.add_child(this._header);
+        this._captureButton = makeIconButton('list-add-symbolic', 'Quick capture (Ctrl+Alt+N)',
+            () => this._openQuickCapture(), 'perdana-island__capture-button');
+        this._captureButton.visible = false;
+        this._content.add_child(this._captureButton);
 
         this._panel = new St.Widget({
             layout_manager: new Clutter.FixedLayout(),
@@ -1733,6 +1763,11 @@ export default class PerdanaIslandExtension extends Extension {
             this._clockLabel.set_size(58, 22);
             this._dateLabel.set_position(28, 8);
             this._clockLabel.set_position(Math.max(28, width - 86), 8);
+        }
+        if (this._captureButton) {
+            this._captureButton.set_position(Math.max(28, width - 118), 8);
+            this._captureButton.set_size(24, 24);
+            this._captureButton.visible = Boolean(this._expanded && !this._quickCapture);
         }
         if (this._panel) {
             const panelY = HEADER_HEIGHT;
@@ -2061,6 +2096,8 @@ export default class PerdanaIslandExtension extends Extension {
     }
 
     _expandedWidth() {
+        if (this._quickCapture)
+            return Math.min(QUICK_CAPTURE_WIDTH, (Main.layoutManager.primaryMonitor?.width || QUICK_CAPTURE_WIDTH) - 32);
         const preferred = PAGE_WIDTHS[this._activePage] || CONTENT_WIDTH;
         const monitorWidth = Main.layoutManager.primaryMonitor?.width;
         return monitorWidth ? Math.max(1, Math.min(preferred, monitorWidth - 32)) : preferred;
@@ -2091,7 +2128,8 @@ export default class PerdanaIslandExtension extends Extension {
                 320,
                 () => {
                     this._hoverCloseSource = 0;
-                    if (!this._root?.hover && !this._tabDrag?.moved && !this._islandDrag?.moved) {
+                    if (!this._root?.hover && !this._quickCapture
+                        && !this._tabDrag?.moved && !this._islandDrag?.moved) {
                         this._pinned = false;
                         this._setExpanded(false);
                     }
@@ -2271,6 +2309,15 @@ export default class PerdanaIslandExtension extends Extension {
         }
         this._expanded = expanded;
         this._closing = !expanded;
+        if (!expanded && this._quickCapture) {
+            this._quickCapture = false;
+            this._captureOpenedByShortcut = false;
+            this._quickCaptureDraft = '';
+            this._quickCaptureNotice = '';
+            this._captureEntry = null;
+            this._capturePreviewLabel = null;
+            this._captureNoticeLabel = null;
+        }
         if (!expanded) {
             this._tabDrag = null;
             this._islandDrag = null;
@@ -2439,8 +2486,23 @@ export default class PerdanaIslandExtension extends Extension {
     _selectPage(key) {
         if (!this._visiblePages().some(page => page.key === key))
             return;
-        if (this._activePage === key)
+        const captureWasOpen = this._quickCapture;
+        if (captureWasOpen) {
+            this._quickCapture = false;
+            this._captureOpenedByShortcut = false;
+            this._quickCaptureDraft = '';
+            this._quickCaptureNotice = '';
+            this._captureEntry = null;
+            this._capturePreviewLabel = null;
+            this._captureNoticeLabel = null;
+        }
+        if (this._activePage === key) {
+            if (captureWasOpen) {
+                this._renderPanel();
+                this._resizeExpandedIsland();
+            }
             return;
+        }
         if (this._activePage === 'notes')
             this._leaveNotes();
         const pages = this._visiblePages();
@@ -3117,8 +3179,11 @@ export default class PerdanaIslandExtension extends Extension {
         const buttonHeight = 30;
         const inset = 8;
         const available = Math.max(0, width - 8);
-        const activePage = pages.find(page => page.key === this._activePage);
-        const activeEntry = this._pageButtons.get(this._activePage);
+        // Quick capture replaces the page with its own field, so no tab is
+        // selected while it is open.
+        const selectedKey = this._quickCapture ? null : this._activePage;
+        const activePage = pages.find(page => page.key === selectedKey);
+        const activeEntry = this._pageButtons.get(selectedKey);
         let activeWidth = 34;
         if (activePage && activeEntry) {
             const naturalWidth = activeEntry.label.get_preferred_width(-1)[1];
@@ -3135,7 +3200,7 @@ export default class PerdanaIslandExtension extends Extension {
             inactiveWidth = Math.max(22,
                 Math.floor((available - activeWidth - gap * slots) / slots));
         }
-        const widths = pages.map(page => page.key === this._activePage ? activeWidth : inactiveWidth);
+        const widths = pages.map(page => page.key === selectedKey ? activeWidth : inactiveWidth);
         const totalWidth = widths.reduce((total, item) => total + item, 0) + gap * (pages.length - 1);
         const visibleKeys = new Set(pages.map(page => page.key));
         for (const page of PAGES) {
@@ -3149,7 +3214,7 @@ export default class PerdanaIslandExtension extends Extension {
             if (!entry)
                 continue;
             entry.slot.visible = true;
-            const active = page.key === this._activePage;
+            const active = page.key === selectedKey;
             const buttonWidth = widths[visibleIndex];
             const slotY = Math.round((TABBAR_HEIGHT - buttonHeight) / 2);
             const drag = this._tabDrag;
@@ -3318,7 +3383,9 @@ export default class PerdanaIslandExtension extends Extension {
         // editor can resolve its theme node and preferred height.
         this._pageBody = body;
         this._pageViewport.add_child(body);
-        if (this._activePage === 'media')
+        if (this._quickCapture)
+            this._renderQuickCapturePage(body);
+        else if (this._activePage === 'media')
             this._renderMediaPage(body);
         else if (this._activePage === 'lyrics')
             this._renderLyricsPage(body);
@@ -3392,6 +3459,160 @@ export default class PerdanaIslandExtension extends Extension {
         this._applyAccentStyles();
     }
 
+
+    _openQuickCapture() {
+        if (!this._enabled || !this._root)
+            return;
+        if (this._systemNoticeActive)
+            this._dismissSystemNotice(false);
+        this._setBrowserTucked(false);
+        this._userHidden = false;
+        this._root.show();
+        this._captureOpenedByShortcut = !this._expanded;
+        this._capturePinnedBefore = this._pinned;
+        this._quickCapture = true;
+        this._quickCaptureDraft = '';
+        this._quickCaptureNotice = '';
+        if (!this._expanded)
+            this._setExpanded(true);
+        this._pinned = true;
+        this._renderPanel();
+        this._resizeExpandedIsland();
+        this._focusCaptureEntry();
+    }
+
+    _closeQuickCapture() {
+        if (!this._quickCapture)
+            return;
+        const openedByShortcut = this._captureOpenedByShortcut;
+        this._quickCapture = false;
+        this._captureOpenedByShortcut = false;
+        this._quickCaptureDraft = '';
+        this._quickCaptureNotice = '';
+        this._captureEntry = null;
+        this._capturePreviewLabel = null;
+        this._captureNoticeLabel = null;
+        this._pinned = Boolean(this._capturePinnedBefore);
+        this._renderPanel();
+        this._resizeExpandedIsland();
+        if (openedByShortcut)
+            this._setExpanded(false);
+    }
+
+    _resizeExpandedIsland() {
+        if (!this._expanded || !this._root)
+            return;
+        this._root.ease({
+            width: this._expandedWidth(),
+            height: this._expandedHeight(),
+            duration: this._motionDuration(380),
+            mode: this._reducedMotion ? Clutter.AnimationMode.LINEAR : Clutter.AnimationMode.EASE_OUT_QUINT,
+            onComplete: () => this._layoutIsland(),
+        });
+        this._layoutIsland();
+    }
+
+    _focusCaptureEntry() {
+        if (!this._captureEntry)
+            return;
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            if (this._quickCapture && this._captureEntry)
+                this._captureEntry.grab_key_focus();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _updateCapturePreview() {
+        if (!this._capturePreviewLabel)
+            return;
+        const raw = this._captureEntry?.get_text() ?? this._quickCaptureDraft ?? '';
+        if (!raw.trim()) {
+            this._capturePreviewLabel.text = 'Task · no date';
+            return;
+        }
+        const now = new Date();
+        const parsed = parseQuickCapture(raw, now);
+        const schedule = describeCapture(parsed, now);
+        this._capturePreviewLabel.text = `Task · ${parsed.text}${schedule ? ` · ${schedule}` : ''}`;
+    }
+
+    _commitQuickCapture(mode) {
+        const raw = this._captureEntry?.get_text() ?? this._quickCaptureDraft ?? '';
+        const now = new Date();
+        const parsed = parseQuickCapture(raw, now);
+        const text = parsed.text.trim();
+        if (!text) {
+            this._quickCaptureNotice = 'Type something first';
+            this._renderPanel();
+            return;
+        }
+        this._quickCaptureDraft = '';
+        if (mode === 'note') {
+            this._quickCaptureNotice = 'Note saved';
+            this._addNoteWithText(text);
+            return;
+        }
+        const schedule = describeCapture(parsed, now);
+        this._quickCaptureNotice = schedule ? `Task added · ${schedule}` : 'Task added · no date';
+        this._addTask(text, parsed.due, parsed.priority, parsed.dueDate);
+    }
+
+    _renderQuickCapturePage(body) {
+        const pageWidth = this._pageWidth();
+        const height = this._bodyHeight();
+        place(body, makeLabel('Quick capture', 'perdana-island__capture-heading'), 0, 2, pageWidth, 24);
+        place(body, makeLabel('Enter adds a task · Ctrl+Enter saves a note · Esc closes',
+            'perdana-island__capture-hint'), 0, 26, pageWidth, 16);
+
+        const entry = new St.Entry({
+            hint_text: 'telepon ibu besok jam 5',
+            text: this._quickCaptureDraft || '',
+            can_focus: true,
+            style_class: 'perdana-island__capture-entry',
+            accessible_name: 'Quick capture text',
+        });
+        entry.clutter_text.connect('text-changed', () => {
+            this._quickCaptureDraft = entry.get_text();
+            this._updateCapturePreview();
+        });
+        entry.clutter_text.connect('key-press-event', (_actor, event) => {
+            const symbol = event.get_key_symbol();
+            if (symbol === Clutter.KEY_Escape) {
+                this._closeQuickCapture();
+                return Clutter.EVENT_STOP;
+            }
+            if (symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter) {
+                const control = event.get_state() & Clutter.ModifierType.CONTROL_MASK;
+                this._commitQuickCapture(control ? 'note' : 'task');
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+        place(body, entry, 0, 44, pageWidth, 34);
+
+        const preview = makeLabel('', 'perdana-island__capture-preview');
+        preview.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        place(body, preview, 0, 86, pageWidth, 18);
+
+        place(body, makeTextButton('Add task', 'Add the typed text as a task',
+            () => this._commitQuickCapture('task'), 'perdana-island__capture-primary'), 0, 106, 92, 30);
+        place(body, makeTextButton('Save note', 'Save the typed text as a note',
+            () => this._commitQuickCapture('note'), 'perdana-island__capture-secondary'), 100, 106, 92, 30);
+        place(body, makeTextButton('Close', 'Close quick capture',
+            () => this._closeQuickCapture(), 'perdana-island__capture-secondary'),
+            Math.max(0, pageWidth - 64), 106, 64, 30);
+
+        const notice = makeLabel(this._quickCaptureNotice || 'Saved locally · nothing leaves this device',
+            'perdana-island__capture-notice');
+        notice.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        place(body, notice, 0, Math.max(0, height - 24), pageWidth, 16);
+
+        this._captureEntry = entry;
+        this._capturePreviewLabel = preview;
+        this._captureNoticeLabel = notice;
+        this._updateCapturePreview();
+        this._focusCaptureEntry();
+    }
 
     _renderMediaPage(body) {
         const player = this._getSelectedPlayer();
@@ -4524,15 +4745,16 @@ export default class PerdanaIslandExtension extends Extension {
             label.x_expand = true;
             row.add_child(label);
 
-            const timed = Number.isInteger(task.due) && task.dueDate;
+            const timed = Number.isInteger(task.due) && Boolean(task.dueDate);
+            const dated = Boolean(task.dueDate) && !Number.isInteger(task.due);
             const late = timed && !task.done && task.dueDate < todayKey;
-            const dateText = timed && task.dueDate !== todayKey
+            const dateText = task.dueDate && task.dueDate !== todayKey
                 ? new Intl.DateTimeFormat('en-GB', {day: '2-digit', month: 'short'})
                     .format(new Date(`${task.dueDate}T00:00:00`)) + ' '
                 : '';
             const chipWidth = timed
                 ? (task.dueDate !== todayKey ? 88 : late ? 62 : 44)
-                : 0;
+                : dated ? 56 : 0;
             const priorityWidth = task.priority ? 42 : 0;
 
             if (this._taskEditing) {
@@ -4582,6 +4804,10 @@ export default class PerdanaIslandExtension extends Extension {
                     );
                     timeLabel.x_align = Clutter.ActorAlign.CENTER;
                     row.add_child(timeLabel);
+                } else if (dated) {
+                    const dayLabel = makeLabel(dateText.trim() || 'Today', 'perdana-island__task-time');
+                    dayLabel.x_align = Clutter.ActorAlign.CENTER;
+                    row.add_child(dayLabel);
                 }
                 if (task.priority) {
                     const priorityLabel = makeLabel(TASK_PRIORITY_LABELS[task.priority],
@@ -5379,8 +5605,8 @@ export default class PerdanaIslandExtension extends Extension {
 
         place(body, makeLabel('Settings', 'perdana-island__settings-title-label'),
             0, 3, navWidth, 22);
-        place(body, makeLabel('Ctrl+Alt+X hide/show', 'perdana-island__settings-shortcut'),
-            panelX, 5, panelWidth, 18);
+        place(body, makeLabel('Ctrl+Alt+X hide/show · Ctrl+Alt+N capture',
+            'perdana-island__settings-shortcut'), panelX, 5, panelWidth, 18);
 
         sections.forEach(([key, label], index) => {
             const selected = this._settingsSection === key;
@@ -8256,17 +8482,21 @@ export default class PerdanaIslandExtension extends Extension {
         this._renderPanel();
     }
 
-    _addTask(text, due = null, priority = null) {
+    _addTask(text, due = null, priority = null, dueDate = null) {
         const trimmed = text.trim().slice(0, 120);
         if (!trimmed)
             return;
+        const dueValue = Number.isInteger(due) ? due : null;
+        const dateValue = dueValue !== null
+            ? (typeof dueDate === 'string' && dueDate ? dueDate : dateKey())
+            : (typeof dueDate === 'string' && dueDate ? dueDate : null);
         this._tasks.push({
             id: GLib.uuid_string_random(),
             text: trimmed,
             done: false,
             doneAt: null,
-            due: Number.isInteger(due) ? due : null,
-            dueDate: Number.isInteger(due) ? dateKey() : null,
+            due: dueValue,
+            dueDate: dateValue,
             priority: TASK_PRIORITIES.includes(priority) ? priority : null,
         });
         this._saveTasks();
@@ -8705,6 +8935,21 @@ export default class PerdanaIslandExtension extends Extension {
         this._notesSelectedId = note.id;
         this._renderPanel();
         this._focusNotesEditor();
+    }
+
+    _addNoteWithText(text) {
+        const trimmed = String(text || '').trim().slice(0, 4000);
+        if (!trimmed)
+            return;
+        this._dropEmptyNotes();
+        this._flushNotesSave();
+        this._notes.push({
+            id: `note-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+            text: trimmed,
+            updatedAt: Date.now(),
+        });
+        this._saveNotes();
+        this._renderPanel();
     }
 
     _deleteNote(id) {

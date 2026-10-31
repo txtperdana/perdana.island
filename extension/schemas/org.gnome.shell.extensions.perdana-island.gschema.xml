@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.gnome.shell.extensions.perdana-island" path="/org/gnome/shell/extensions/perdana-island/">
+    <key name="quick-capture" type="as">
+      <default>['&lt;Control&gt;&lt;Alt&gt;n']</default>
+      <summary>Open quick capture</summary>
+      <description>Open Perdana Island with a single field for adding a task or saving a note.</description>
+    </key>
     <key name="toggle-island-visibility" type="as">
       <default>['&lt;Control&gt;&lt;Alt&gt;x']</default>
       <summary>Toggle Perdana Island visibility</summary>

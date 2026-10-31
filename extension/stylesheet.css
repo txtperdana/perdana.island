@@ -1757,3 +1757,85 @@
 .perdana-island--theme-graphite .perdana-button--focus-unit {
   background-color: rgba(255, 255, 255, 0.09);
 }
+
+/* Quick capture. The preview line updates while typing so the parsed date,
+   time, and priority are visible before the entry is saved. */
+.perdana-island__capture-heading {
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.perdana-island__capture-hint {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+}
+
+.perdana-island__capture-entry {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.08);
+  font-size: 14px;
+}
+
+.perdana-island__capture-entry:focus {
+  border-color: rgba(255, 255, 255, 0.55);
+  background-color: rgba(255, 255, 255, 0.11);
+}
+
+.perdana-island__capture-preview {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+
+.perdana-island__capture-notice {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+}
+
+.perdana-button.perdana-island__capture-primary {
+  min-height: 30px;
+  padding: 0 14px;
+  border-radius: 15px;
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.24);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.perdana-button.perdana-island__capture-primary:hover {
+  background-color: rgba(255, 255, 255, 0.32);
+}
+
+.perdana-button.perdana-island__capture-secondary {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  color: rgba(255, 255, 255, 0.85);
+  background-color: rgba(255, 255, 255, 0.09);
+  font-size: 12px;
+}
+
+.perdana-button.perdana-island__capture-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.perdana-button.perdana-island__capture-button {
+  min-height: 24px;
+  padding: 0;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.68);
+  background-color: transparent;
+}
+
+.perdana-button.perdana-island__capture-button:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.perdana-island__capture-button .perdana-island__icon {
+  icon-size: 15px;
+}

@@ -7,11 +7,11 @@ Perdana Island's GNOME package targets GNOME Shell 50 and 51 and is prepared as 
 From the repository root:
 
 ```sh
-gnome-extensions pack ./extension --extra-source=../LICENSE --extra-source=clipboard-utils.js --force --out-dir ./dist
+gnome-extensions pack ./extension --extra-source=../LICENSE --extra-source=clipboard-utils.js --extra-source=quick-capture.js --force --out-dir ./dist
 unzip -l ./dist/perdana.island@perdana.shell-extension.zip
 ```
 
-The archive root should contain `metadata.json`, `extension.js`, `clipboard-utils.js`, `stylesheet.css`, `LICENSE`, and the schema XML in `schemas/`. GNOME compiles schemas when it installs extensions through its supported tools; the XML file itself must be included in the upload. Do not upload the KDE package or repository development files.
+The archive root should contain `metadata.json`, `extension.js`, `clipboard-utils.js`, `quick-capture.js`, `stylesheet.css`, `LICENSE`, and the schema XML in `schemas/`. GNOME compiles schemas when it installs extensions through its supported tools; the XML file itself must be included in the upload. Do not upload the KDE package or repository development files.
 
 Run Shexli before uploading:
 

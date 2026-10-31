@@ -6,7 +6,7 @@
 [![MPRIS](https://img.shields.io/badge/media-MPRIS%20over%20D--Bus-383838)](https://specifications.freedesktop.org/mpris-spec/latest/)
 [![Fedora 44](https://img.shields.io/badge/validated-Fedora%2044-51a2da?logo=fedora&logoColor=white)](https://fedoraproject.org/)
 
-Perdana Island provides separate native packages for GNOME Shell and KDE Plasma. The GNOME Shell 50 and 51 extension places media controls, synced lyrics, a focus timer, a file shelf, tasks, quick notes, recent clipboard text, notifications, settings, and system information in a compact Notch or floating Pill. The KDE Plasma 6 widget provides Music, Focus, Tasks, and Clipboard pages, plus daily agenda and reminder notifications. Both packages live in this repository, in `extension/` and `plasma-widget/` respectively, and share the project release version while keeping their code and installation packages separate. On GNOME, **Ctrl+Alt+X** hides or shows the island.
+Perdana Island provides separate native packages for GNOME Shell and KDE Plasma. The GNOME Shell 50 and 51 extension places media controls, synced lyrics, a focus timer, a file shelf, tasks, quick notes, recent clipboard text, notifications, settings, and system information in a compact Notch or floating Pill. The KDE Plasma 6 widget provides Music, Focus, Tasks, and Clipboard pages, plus daily agenda and reminder notifications. Both packages live in this repository, in `extension/` and `plasma-widget/` respectively, and share the project release version while keeping their code and installation packages separate. On GNOME, **Ctrl+Alt+X** hides or shows the island, and **Ctrl+Alt+N** opens quick capture.
 
 See [README-KDE.md](README-KDE.md) for KDE requirements, limitations, installation, and usage. Each GitHub release attaches one GNOME extension archive and one KDE Plasma widget archive. Install only the archive for your desktop environment.
 
@@ -28,6 +28,7 @@ These images show representative UI states with sample media, files, notificatio
 | Shelf grid | ![Shelf Grid view with file thumbnails](assets/screenshots/shelf.png) |
 | Shelf list | ![Shelf List view with filenames](assets/screenshots/shelf-list.png) |
 | To-do | ![To-do page with task completion and editing controls](assets/screenshots/todo.png) |
+| Quick capture | ![Quick capture field with a parsed task preview](assets/screenshots/quick-capture.png) |
 | Notes | ![Notes page with a note list and a wrapping editor](assets/screenshots/notes.png) |
 | Clipboard | ![Clipboard history with masked email and link previews](assets/screenshots/clipboard.png) |
 | Today | ![Today calendar with processor, memory, disk, and battery indicators](assets/screenshots/today.png) |
@@ -47,6 +48,7 @@ These images show representative UI states with sample media, files, notificatio
 - Focus offers Focus, Short, Long, and custom durations in seconds or minutes. Completion shows a temporary notice. While a session runs, Focus guard checks the focused window and shows one notice after five minutes in YouTube, Netflix, Twitch, TikTok, Instagram, Facebook, Reddit, or X. It reads only the window class and title, keeps the counter in memory, and can be turned off in Settings.
 - Shelf offers Grid and List views, image thumbnails, a scrollable list capped at 10 visible items, and a local folder that refreshes when files change. A capture button saves the current screen into that folder through the desktop screenshot portal.
 - To-do supports adding, completing, editing, and deleting tasks. Tasks persist between sessions. A task can carry a time (24 hour) and a priority (High, Med, Low); timed tasks sort to the top, and the list marks tasks whose day has passed as late.
+- Quick capture opens from **Ctrl+Alt+N** or the **+** beside the clock. One field accepts natural phrases such as `Telepon ibu besok jam 5`, `Rapat desain besok sore`, or `Kirim laporan besok penting`, and the preview shows the parsed title, date, time, and priority before saving. **Enter** adds a task, **Ctrl+Enter** saves a note, and **Escape** closes it. The parser runs locally and supports Indonesian and English relative dates, periods of the day, clock times, and priorities.
 - Clipboard keeps up to four recent text entries between sessions. It records changes while the extension is enabled, deduplicates repeated text and URLs, masks email addresses and links in previews, and skips explicitly identified credentials.
 - To-do also shows a daily summary: scheduled tasks with the next time, tasks completed today, focus minutes, and a Copy report action that puts a plain text report on the clipboard.
 - At 08:00 the island can show a morning agenda notice with today's scheduled tasks, and at 17:00 a recap of completed tasks and focus minutes. Clicking either notice opens the matching page. Both are toggled under Daily agenda in Settings.

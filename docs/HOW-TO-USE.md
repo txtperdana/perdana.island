@@ -6,6 +6,24 @@
 - When a media player or focus timer is active, hover over the island to open its page.
 - Select a page from the tab bar. With the island open, use **Left / Right** to switch pages.
 - Press **Escape** or click outside the panel to close it.
+- Press **Ctrl+Alt+X** to hide or show the island, and **Ctrl+Alt+N** to open quick capture. Both shortcuts can be changed in GNOME Settings → Keyboard → Custom Shortcuts.
+
+## Quick capture
+
+Press **Ctrl+Alt+N** or select the **+** beside the clock to open a single field. Type the way you would say it, then press **Enter** to add a task, **Ctrl+Enter** to save it as a note, or **Escape** to close. The preview under the field shows the title that will be saved together with any date, time, and priority that were understood.
+
+Examples:
+
+| Type | Saved as |
+| --- | --- |
+| `Telepon ibu besok jam 5` | Task "Telepon ibu", tomorrow 05:00 |
+| `Rapat desain besok sore` | Task "Rapat desain", tomorrow 16:00 |
+| `Kirim laporan besok penting` | Task "Kirim laporan", tomorrow, high priority |
+| `Bayar listrik !low` | Task "Bayar listrik", low priority |
+| `Call mom at 5pm` | Task "Call mom", today 17:00 |
+| `Rapat 5 November jam 10` | Task "Rapat", 5 November 10:00 |
+
+Indonesian and English day names, `jam`/`pukul`, `besok`, `lusa`, `hari ini`, `pagi`, `siang`, `sore`, and `malam` are understood. A bare time that has already passed moves to tomorrow. Words that were only schedule or priority hints are removed from the title.
 
 ## Music
 
@@ -32,7 +50,7 @@ GNOME Shell does not expose the desktop's dragged file list to the island actors
 
 ## To-do
 
-Use **Add task** to create an item. Select its check control to mark it complete or incomplete. Select **Edit** to show task deletion controls. The list is saved to `~/.local/share/perdana.island/tasks.json`.
+Use **Add task** to create an item. Type naturally in quick capture, or use the To-do composer for an explicit time and priority. Select a task's check control to mark it complete or incomplete. Select **Edit** to show task deletion controls. Tasks with a date but no time show that day instead of a clock. The list is saved to `~/.local/share/perdana.island/tasks.json`.
 
 ## Notes
 
