@@ -15,6 +15,7 @@ This is the KDE Plasma 6 implementation of Perdana Island. It is a native Plasma
 - **Daily agenda** can send a Plasma notification at 08:00 with the first scheduled tasks and a recap at 17:00 with the number completed today. Both are toggled in the widget settings.
 - **Water reminder** can send a Plasma notification every hour between 08:00 and 21:00.
 - **Prayer times** can fetch the five daily times from the Aladhan API for a city, cache them for the day, and notify at each time. The calculation method can be Kemenag, MWL, ISNA, or Umm al-Qura.
+- **Reminders** lists the five prayer times for today, marks the next one, and dims the ones that have passed. The same page shows the water countdown with a **Log glass** action and a refresh button for the prayer times.
 - **Themes** change the widget background, border, corners, and tab tint. Midnight, Aero, Aqua, Yaru, and Graphite are available in the settings.
 - **Clipboard** keeps up to four recent plain-text entries while the widget is running. Entries can be copied again or deleted. A small heuristic skips text that resembles common labeled secrets or private-key blocks; it is not a complete secret detector.
 - **Resting capsule** blinks and shows the clock when hovered.
@@ -74,7 +75,7 @@ kpackagetool6 --type=Plasma/Applet --upgrade plasma-widget
 - Click the capsule to open the expanded widget. Close it with Plasma's normal popup dismissal, such as **Escape** or clicking outside the popup.
 - With the capsule focused, press **Enter** or **Space** to toggle it. The page buttons expose accessible names for keyboard and assistive-technology users.
 - When resting, hover over the capsule to reveal the clock. When media is active, the capsule shows the track title and playback animation. A running focus timer shows its countdown. Clicking the capsule selects Music when a player is active, or Focus while a timer is running or its completion notice is visible.
-- Use the four buttons along the bottom of the expanded widget to switch between **Music**, **Focus**, **Tasks**, and **Clipboard**. The date and time appear in the header.
+- Use the five buttons along the bottom of the expanded widget to switch between **Music**, **Focus**, **Tasks**, **Clipboard**, and **Reminders**. The date and time appear in the header.
 
 ### Music
 
@@ -98,6 +99,8 @@ Open **Tasks**, type into **Add a task**, optionally fill the time field (`HH:MM
 Scheduled tasks show their time and priority on the row. A task whose date has passed is marked **Late** until it is completed.
 
 ### Reminders and themes
+
+Open **Reminders** to see today's prayer times and the water countdown. The next prayer is highlighted, times that have passed are dimmed, and **Refresh** re-fetches the times for the configured city. The right side shows the next glass; press **Log glass** to restart the hourly countdown. When a reminder is turned off, that side of the page says so instead of showing times.
 
 Right-click the widget, choose **Configure Perdana Island**, and use the settings page:
 

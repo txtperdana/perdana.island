@@ -44,6 +44,9 @@ PlasmoidItem {
     readonly property var taskPriorityLabels: ({ high: "High", medium: "Med", low: "Low" })
     readonly property var prayerNames: ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
     readonly property var prayerMethods: [[20, "Kemenag"], [3, "MWL"], [2, "ISNA"], [4, "Umm al-Qura"]]
+    readonly property int waterWindowStart: 480
+    readonly property int waterWindowEnd: 1260
+    readonly property int waterIntervalMs: 3600000
 
     readonly property var player: mprisModel.currentPlayer
     readonly property bool hasMedia: player !== null && player !== undefined && player.playbackStatus > Mpris.PlaybackStatus.Stopped
@@ -209,6 +212,45 @@ PlasmoidItem {
         request.send();
     }
 
+    function refreshPrayerTimes() {
+        prayerRetryAt = 0;
+        fetchPrayerTimes();
+    }
+
+    function prayerPageSubtitle() {
+        if (!Plasmoid.configuration.prayerReminder)
+            return "Prayer reminders are off";
+        if (prayerRequest)
+            return "Loading prayer times...";
+        if (!prayerTimesToday())
+            return "No prayer times yet";
+        const parts = splitCity(Plasmoid.configuration.prayerCity);
+        const method = prayerMethods.find(entry => Number(entry[0]) === Number(Plasmoid.configuration.prayerMethod));
+        return (parts[0] || "No city") + " · " + (method ? method[1] : "Kemenag");
+    }
+
+    function waterSummary(date) {
+        if (!Plasmoid.configuration.waterReminder)
+            return { caption: "Reminder", value: "Off", detail: "Turn on in Settings" };
+        const minutes = date.getHours() * 60 + date.getMinutes();
+        if (minutes < root.waterWindowStart)
+            return { caption: "Next glass", value: "08:00", detail: "Quiet hours until then" };
+        if (minutes >= root.waterWindowEnd)
+            return { caption: "Next glass", value: "08:00", detail: "Resumes tomorrow" };
+        // lastWaterAt is stored in milliseconds by the widget.
+        const last = Number(Plasmoid.configuration.lastWaterAt || 0);
+        if (!last)
+            return { caption: "Next glass", value: "Now", detail: "No glass logged yet" };
+        const lastDate = new Date(last);
+        const lastLabel = root.formatClock(lastDate.getHours() * 60 + lastDate.getMinutes());
+        const remaining = Math.min(root.waterIntervalMs, Math.max(0, last + root.waterIntervalMs - date.getTime()));
+        return {
+            caption: "Next glass",
+            value: remaining <= 0 ? "Now" : Math.ceil(remaining / 60000) + " min",
+            detail: "Last glass " + lastLabel
+        };
+    }
+
     function checkReminders() {
         const now = root.now;
         const today = root.dateKey(now);
@@ -238,8 +280,8 @@ PlasmoidItem {
         }
 
         const nowMs = now.getTime();
-        if (Plasmoid.configuration.waterReminder && minutes >= 480 && minutes < 1260
-                && nowMs - Number(Plasmoid.configuration.lastWaterAt || 0) >= 3600000) {
+        if (Plasmoid.configuration.waterReminder && minutes >= waterWindowStart && minutes < waterWindowEnd
+                && nowMs - Number(Plasmoid.configuration.lastWaterAt || 0) >= waterIntervalMs) {
             waterNotification.sendEvent();
             Plasmoid.configuration.lastWaterAt = String(nowMs);
         }
@@ -343,6 +385,7 @@ PlasmoidItem {
         case "focus": return Qt.resolvedUrl("pages/FocusPage.qml");
         case "tasks": return Qt.resolvedUrl("pages/TasksPage.qml");
         case "clipboard": return Qt.resolvedUrl("pages/ClipboardPage.qml");
+        case "reminders": return Qt.resolvedUrl("pages/RemindersPage.qml");
         default: return Qt.resolvedUrl("pages/MusicPage.qml");
         }
     }
@@ -681,17 +724,18 @@ PlasmoidItem {
 
                 Repeater {
                     model: [
-                        { key: "music", text: "Music", icon: "media-playback-start" },
-                        { key: "focus", text: "Focus", icon: "chronometer" },
-                        { key: "tasks", text: "Tasks", icon: "view-task" },
-                        { key: "clipboard", text: "Clipboard", icon: "edit-paste" }
+                        { key: "music", text: "Music", icon: "media-playback-start", activeWidth: 96 },
+                        { key: "focus", text: "Focus", icon: "chronometer", activeWidth: 96 },
+                        { key: "tasks", text: "Tasks", icon: "view-task", activeWidth: 96 },
+                        { key: "clipboard", text: "Clipboard", icon: "edit-paste", activeWidth: 122 },
+                        { key: "reminders", text: "Reminders", icon: "appointment-soon", activeWidth: 132 }
                     ]
 
                     delegate: QQC2.Button {
                         id: tabButton
                         required property var modelData
                         readonly property bool active: root.currentPage === modelData.key
-                        width: active ? (modelData.key === "clipboard" ? 122 : 96) : 36
+                        width: active ? modelData.activeWidth : 36
                         height: 32
                         text: modelData.text
                         Accessible.name: modelData.text
