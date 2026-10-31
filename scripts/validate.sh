@@ -15,6 +15,7 @@ command -v glib-compile-schemas >/dev/null 2>&1 || fail 'glib-compile-schemas is
 
 node --check extension/extension.js
 node --check extension/clipboard-utils.js
+node --check extension/layout-utils.js
 
 for file in package.json extension/metadata.json plasma-widget/metadata.json; do
     python3 -m json.tool "$file" >/dev/null || fail "invalid JSON: $file"
@@ -40,6 +41,7 @@ gnome_required = {
     'metadata.json',
     'extension.js',
     'clipboard-utils.js',
+    'layout-utils.js',
     'stylesheet.css',
     'LICENSE',
     'schemas/org.gnome.shell.extensions.perdana-island.gschema.xml',
