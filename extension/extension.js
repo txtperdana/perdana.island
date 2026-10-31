@@ -25,6 +25,13 @@ import {
     normalizeClipboardHistoryKey,
 } from './clipboard-utils.js';
 import {classifyMedia} from './music-classifier.js';
+import {
+    BackupError,
+    backupFileName,
+    buildBackup,
+    describeBackupSummary,
+    parseBackup,
+} from './backup-utils.js';
 
 const MPRIS_PREFIX = 'org.mpris.MediaPlayer2.';
 const MPRIS_PATH = '/org/mpris/MediaPlayer2';
@@ -592,6 +599,12 @@ export default class PerdanaIslandExtension extends Extension {
         this._migrateLegacyData();
         this._preferences = this._loadPreferences();
         this._activePage = this._visiblePages()[0]?.key || 'settings';
+        this._backupChooser = 0;
+        this._backupChooserPath = null;
+        this._restoreChooser = 0;
+        this._restoreChooserPath = null;
+        this._pendingRestore = null;
+        this._dataNotice = '';
         this._tasks = this._loadTasks();
         this._focusLog = this._loadFocusLog();
         this._prayerCache = this._loadPrayerCache();
@@ -5373,6 +5386,7 @@ export default class PerdanaIslandExtension extends Extension {
             ['reminders', 'Reminders'],
             ['notifications', 'Notifications'],
             ['tabs', 'Tabs'],
+            ['data', 'Data'],
         ];
         if (!sections.some(([key]) => key === this._settingsSection))
             this._settingsSection = 'island';
@@ -5401,10 +5415,12 @@ export default class PerdanaIslandExtension extends Extension {
                 if (this._settingsSection === key)
                     return;
                 this._settingsSection = key;
+                this._pendingRestore = null;
                 this._renderPanel();
             });
             attachButtonMotion(button, {hoverScale: 1.04, pressScale: 0.95});
-            place(body, button, 0, 31 + index * 22, navWidth, 21);
+            const navStep = sections.length > 6 ? 19 : 22;
+            place(body, button, 0, 31 + index * navStep, navWidth, navStep - 1);
         });
 
         const contentHeights = {
@@ -5414,6 +5430,7 @@ export default class PerdanaIslandExtension extends Extension {
             reminders: 326,
             notifications: 240,
             tabs: 172,
+            data: 132,
         };
         const contentHeight = contentHeights[this._settingsSection];
         const scroll = new St.ScrollView({
@@ -5775,7 +5792,7 @@ export default class PerdanaIslandExtension extends Extension {
             });
             place(content, makeLabel('Notifications from browser apps follow the source name GNOME reports.',
                 'perdana-island__settings-hint'), 0, 192, contentWidth, 24);
-        } else {
+        } else if (this._settingsSection === 'tabs') {
             heading('Visible tabs · Settings stays available', 0);
             place(content, makeLabel('Drag tabs in the bar to reorder. The first tab opens with the island.',
                 'perdana-island__settings-hint'), 0, 20, contentWidth, 18);
@@ -5790,6 +5807,37 @@ export default class PerdanaIslandExtension extends Extension {
                     column * (itemWidth + gap), 44 + row * 34, itemWidth, () =>
                         this._setPageVisible(page.key, this._preferences.visiblePages[page.key] === false), page.icon);
             });
+        } else if (this._settingsSection === 'data') {
+            if (this._pendingRestore) {
+                const backup = this._pendingRestore.backup;
+                heading('Restore this backup?', 0);
+                const summaryLabel = makeLabel(
+                    `${this._pendingRestore.name} · ${describeBackupSummary(backup.summary)}`,
+                    'perdana-island__settings-hint');
+                summaryLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+                place(content, summaryLabel, 0, 18, contentWidth, 18);
+                place(content, makeLabel('Replaces the tasks, notes, settings, and focus history on this device.',
+                    'perdana-island__settings-hint'), 0, 36, contentWidth, 16);
+                settingButton('Restore now', true, 0, 58, halfWidth,
+                    () => this._applyPendingRestore(), 'document-save-symbolic');
+                settingButton('Cancel', false, halfWidth + columnGap, 58, halfWidth,
+                    () => this._cancelPendingRestore(), 'window-close-symbolic');
+                place(content, makeLabel('The current data is copied to pre-restore.json first.',
+                    'perdana-island__settings-hint'), 0, 94, contentWidth, 16);
+            } else {
+                heading('Backup and restore', 0);
+                place(content, makeLabel('Tasks, notes, settings, and focus history. Clipboard and Shelf files stay on this device.',
+                    'perdana-island__settings-hint'), 0, 18, contentWidth, 30);
+                settingButton('Save a backup file', false, 0, 52, contentWidth,
+                    () => this._chooseBackupDestination(), 'document-save-symbolic');
+                settingButton('Restore from a backup file', false, 0, 86, contentWidth,
+                    () => this._chooseRestoreFile(), 'document-open-symbolic');
+                const hint = makeLabel(this._dataNotice
+                    || 'A copy of the current data is kept as pre-restore.json.',
+                    'perdana-island__settings-hint');
+                hint.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+                place(content, hint, 0, 120, contentWidth, 16);
+            }
         }
     }
 
@@ -7529,6 +7577,220 @@ export default class PerdanaIslandExtension extends Extension {
         } catch (error) {
             logError(error, 'Perdana Island could not open its transfer folder');
         }
+    }
+
+    _chooseBackupDestination() {
+        if (this._backupChooser || !this._enabled)
+            return;
+        const options = {
+            handle_token: new GLib.Variant('s', `perdana_backup_${GLib.uuid_string_random().replaceAll('-', '')}`),
+            current_name: new GLib.Variant('s', backupFileName(new Date())),
+            filters: new GLib.Variant('a(sa(us))', [['JSON', [[0, '*.json']]]]),
+        };
+        Gio.DBus.session.call(
+            'org.freedesktop.portal.Desktop',
+            '/org/freedesktop/portal/desktop',
+            'org.freedesktop.portal.FileChooser',
+            'SaveFile',
+            new GLib.Variant('(ssa{sv})', ['', 'Save Perdana Island backup', options]),
+            new GLib.VariantType('(o)'),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            null,
+            (_connection, result) => {
+                try {
+                    if (!this._enabled)
+                        return;
+                    [this._backupChooserPath] = Gio.DBus.session.call_finish(result).deep_unpack();
+                    this._backupChooser = Gio.DBus.session.signal_subscribe(
+                        'org.freedesktop.portal.Desktop',
+                        'org.freedesktop.portal.Request',
+                        'Response',
+                        this._backupChooserPath,
+                        null,
+                        Gio.DBusSignalFlags.NONE,
+                        (_bus, _sender, _path, _iface, _signal, parameters) => {
+                            Gio.DBus.session.signal_unsubscribe(this._backupChooser);
+                            this._backupChooser = 0;
+                            this._backupChooserPath = null;
+                            if (parameters.get_child_value(0).get_uint32() !== 0 || !this._enabled)
+                                return;
+                            const uris = parameters.get_child_value(1)
+                                .lookup_value('uris', new GLib.VariantType('as'))
+                                ?.deep_unpack() ?? [];
+                            if (uris[0])
+                                this._writeBackupFile(uris[0]);
+                        }
+                    );
+                } catch (error) {
+                    this._backupChooser = 0;
+                    this._backupChooserPath = null;
+                    this._setDataNotice('Could not open the save dialog');
+                    logError(error, 'Perdana Island could not open the backup save dialog');
+                }
+            }
+        );
+    }
+
+    _writeBackupFile(uri) {
+        let notice = 'Could not write the backup file';
+        try {
+            const file = Gio.File.new_for_uri(uri);
+            const payload = buildBackup({
+                preferences: this._preferences,
+                tasks: this._tasks,
+                notes: this._notes,
+                focusLog: this._focusLog,
+            }, {version: this.metadata?.['version-name'] || '', now: new Date()});
+            const contents = new TextEncoder().encode(JSON.stringify(payload, null, 2));
+            file.replace_contents(contents, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+            notice = `Backup saved · ${file.get_basename()}`;
+        } catch (error) {
+            logError(error, 'Perdana Island could not write the backup file');
+        }
+        this._setDataNotice(notice);
+    }
+
+    _chooseRestoreFile() {
+        if (this._restoreChooser || !this._enabled)
+            return;
+        const options = {
+            handle_token: new GLib.Variant('s', `perdana_restore_${GLib.uuid_string_random().replaceAll('-', '')}`),
+            filters: new GLib.Variant('a(sa(us))', [['JSON', [[0, '*.json']]]]),
+        };
+        Gio.DBus.session.call(
+            'org.freedesktop.portal.Desktop',
+            '/org/freedesktop/portal/desktop',
+            'org.freedesktop.portal.FileChooser',
+            'OpenFile',
+            new GLib.Variant('(ssa{sv})', ['', 'Open a Perdana Island backup', options]),
+            new GLib.VariantType('(o)'),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            null,
+            (_connection, result) => {
+                try {
+                    if (!this._enabled)
+                        return;
+                    [this._restoreChooserPath] = Gio.DBus.session.call_finish(result).deep_unpack();
+                    this._restoreChooser = Gio.DBus.session.signal_subscribe(
+                        'org.freedesktop.portal.Desktop',
+                        'org.freedesktop.portal.Request',
+                        'Response',
+                        this._restoreChooserPath,
+                        null,
+                        Gio.DBusSignalFlags.NONE,
+                        (_bus, _sender, _path, _iface, _signal, parameters) => {
+                            Gio.DBus.session.signal_unsubscribe(this._restoreChooser);
+                            this._restoreChooser = 0;
+                            this._restoreChooserPath = null;
+                            if (parameters.get_child_value(0).get_uint32() !== 0 || !this._enabled)
+                                return;
+                            const uris = parameters.get_child_value(1)
+                                .lookup_value('uris', new GLib.VariantType('as'))
+                                ?.deep_unpack() ?? [];
+                            if (uris[0])
+                                this._readRestoreFile(uris[0]);
+                        }
+                    );
+                } catch (error) {
+                    this._restoreChooser = 0;
+                    this._restoreChooserPath = null;
+                    this._setDataNotice('Could not open the file dialog');
+                    logError(error, 'Perdana Island could not open the restore dialog');
+                }
+            }
+        );
+    }
+
+    _readRestoreFile(uri) {
+        const file = Gio.File.new_for_uri(uri);
+        file.load_contents_async(null, (source, result) => {
+            let notice = 'Could not read the backup file';
+            try {
+                const [success, contents] = source.load_contents_finish(result);
+                if (!success)
+                    throw new Error('The backup file could not be read');
+                const backup = parseBackup(new TextDecoder().decode(contents));
+                this._pendingRestore = {backup, name: source.get_basename() || 'backup.json'};
+                notice = '';
+            } catch (error) {
+                notice = error instanceof BackupError ? error.message : notice;
+                if (!(error instanceof BackupError))
+                    logError(error, 'Perdana Island could not read the backup file');
+            }
+            this._setDataNotice(notice);
+        });
+    }
+
+    _cancelPendingRestore() {
+        this._pendingRestore = null;
+        this._dataNotice = 'Restore cancelled';
+        this._renderPanel();
+    }
+
+    _applyPendingRestore() {
+        const pending = this._pendingRestore;
+        if (!pending)
+            return;
+        this._pendingRestore = null;
+        const backup = pending.backup;
+        try {
+            const version = this.metadata?.['version-name'] || '';
+            const safety = buildBackup({
+                preferences: this._preferences,
+                tasks: this._tasks,
+                notes: this._notes,
+                focusLog: this._focusLog,
+            }, {version, now: new Date()});
+            GLib.mkdir_with_parents(this._taskDirectory, 0o755);
+            GLib.file_set_contents(
+                GLib.build_filenamev([this._taskDirectory, 'pre-restore.json']),
+                JSON.stringify(safety, null, 2)
+            );
+            GLib.file_set_contents(this._preferencesFile, JSON.stringify(backup.preferences, null, 2));
+            this._writeTasksToFile(this._taskFile, backup.tasks);
+            this._notes = backup.notes;
+            this._saveNotes();
+            this._focusLog = backup.focusLog;
+            this._saveFocusLog();
+        } catch (error) {
+            this._dataNotice = 'Could not restore the backup';
+            logError(error, 'Perdana Island could not restore the backup');
+            this._renderPanel();
+            return;
+        }
+
+        this._preferences = this._loadPreferences();
+        this._tasks = this._loadTasks();
+        this._notes = this._loadNotes();
+        this._notesSelectedId = this._notes[0]?.id || null;
+        this._focusLog = this._loadFocusLog();
+        this._applyGlassPreference();
+        this._updateIslandShapePreference();
+        this._applyTheme();
+        this._applyAccentStyles();
+        this._applyFontPreference();
+        this._applyKeepAwake();
+        if (!this._preferences.browserOverlap)
+            this._setBrowserTucked(false);
+        this._restingLyricsWidth = this._preferences.showRestingLyrics
+            ? this._restingLyricsPillWidth() : PLAYING_WIDTH;
+        this._compactVisualState = null;
+        this._layoutCompactCenter();
+        this._updateCollapsedLabel();
+        this._updateMediaTicker();
+        this._prayerRetryAt = 0;
+        this._fetchPrayerTimes();
+        this._dataNotice = `Restored · ${describeBackupSummary(backup.summary)}`;
+        this._renderPanel();
+        this._positionIsland();
+    }
+
+    _setDataNotice(text) {
+        this._dataNotice = String(text || '');
+        if (this._activePage === 'settings' && this._settingsSection === 'data')
+            this._renderPanel();
     }
 
     _setShelfNotice(text) {

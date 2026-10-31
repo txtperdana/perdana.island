@@ -46,6 +46,8 @@ npm test
 gnome-extensions pack ./extension \
   --extra-source=./LICENSE \
   --extra-source=clipboard-utils.js \
+  --extra-source=music-classifier.js \
+  --extra-source=backup-utils.js \
   --out-dir ./dist
 gnome-extensions install --force ./dist/perdana.island@perdana.shell-extension.zip
 gnome-extensions disable perdana.island@perdana

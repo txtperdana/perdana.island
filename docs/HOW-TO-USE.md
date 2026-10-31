@@ -50,9 +50,18 @@ Today shows the local date and available CPU, memory, disk, and battery readings
 
 Open **Notifications** to review recent desktop notifications. Select a row to activate it and close the island. **Clear** dismisses the listed notifications from their applications. App banners can be filtered in **Settings → Notifications** for WhatsApp Web, Discord, Telegram Web/Desktop, and Google Chat when GNOME reports a recognizable source name. These switches affect Perdana Island only; they do not change GNOME's notification settings. A browser that reports only its own generic name cannot be separated by website. Hardware brightness keys can also show the current backlight level in an island OSD; GNOME still applies the brightness change.
 
+## Backup and restore
+
+Open **Settings → Data** to move your island to another machine.
+
+- **Save a backup file** opens the desktop save dialog and writes one JSON file with your tasks, notes, settings, and focus history. Clipboard history and Shelf files are not included.
+- **Restore from a backup file** opens a backup, shows how many tasks, notes, focus days, and settings it contains, and waits for **Restore now**. Nothing is replaced until you confirm. The current data is copied to `~/.local/share/perdana.island/pre-restore.json` first.
+- Files that are not a Perdana Island backup, or that were made by a newer format, are refused with a short message.
+- Restoring applies the saved theme, accent, tabs, reminders, and greeting settings immediately. Monitor position and keep-awake stay local to the machine.
+
 ## Settings
 
-Settings are divided into six side sections:
+Settings are divided into seven side sections:
 
 - **Island** chooses the material, Notch or Pill shape, browser tuck-away, resting clock style, glass appearance, accent color, island position, and keep awake. Browser tuck-away shrinks the island when an overlapping browser is active and the pointer reaches the top edge; moving away restores it. Choose Top, Bottom, Left, Right, or Free, or drag the island by its resting pill or open header. Enter a hex color or choose a swatch. **Keep awake** asks the session manager to block idle and suspend until you turn it off; the inhibitor is released when the extension is disabled.
 - **Greeting** controls the one-time welcome and returning-session message. Choose the Linux account name, device name, or enter a custom name. Edit the first sign-in and returning text; use `{name}` wherever the selected name should appear. Select either preview and click **Show on island** to see it. Greeting text is stored locally. The welcome appears the first time the feature runs; later desktop login sessions use the returning text. A manual preview counts as the greeting for the current session, preventing a duplicate automatic banner.
@@ -60,11 +69,12 @@ Settings are divided into six side sections:
 - **Reminders** controls morning agenda, evening recap, focus guard, water reminders, and prayer reminders, including city and calculation method.
 - **Notifications** controls island banners and filters WhatsApp Web, Discord, Telegram Web/Desktop, and Google Chat. Clicking a banner activates the original desktop notification; replies are not sent from the island. GNOME's own notification banners are not changed.
 - **Tabs** shows or hides feature pages in the bottom navigation. Settings remains available. Drag tabs in the bottom navigation to reorder them; the first visible tab becomes the page opened by a click on the resting island.
+- **Data** saves or restores a JSON backup of tasks, notes, settings, and focus history. It does not include clipboard history or Shelf files.
 
 Each section scrolls independently if its controls exceed the available panel height. Settings and greeting preferences are saved locally.
 
 ## Data location
 
-Tasks, notes, clipboard history, and Shelf files are in `~/.local/share/perdana.island/`. Task changes are also synchronized to `~/.local/share/pulo-island/tasks.json` for compatibility with the previous extension UUID. Task data from either location is reconciled on enable; Shelf files are copied from the previous location when a matching file is not already present.
+Tasks, notes, clipboard history, focus history, and Shelf files are in `~/.local/share/perdana.island/`. Backups and the automatic `pre-restore.json` copy live wherever you save them or in that folder. Task changes are also synchronized to `~/.local/share/pulo-island/tasks.json` for compatibility with the previous extension UUID. Task data from either location is reconciled on enable; Shelf files are copied from the previous location when a matching file is not already present.
 
 Clipboard history is local and never sent to LRCLIB. Lyrics lookup sends the active track's title, artist, optional album, and duration to `lrclib.net`.

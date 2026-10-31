@@ -33,6 +33,7 @@ These images show representative UI states with sample media, files, notificatio
 | Today | ![Today calendar with processor, memory, disk, and battery indicators](assets/screenshots/today.png) |
 | Notifications | ![Recent notifications with Clear all and app activation controls](assets/screenshots/notifications.png) |
 | Settings | ![Settings for appearance, greetings, reminders, and visible tabs](assets/screenshots/settings.png) |
+| Backup and restore | ![Data settings with save and restore actions](assets/screenshots/backup-restore.png) |
 | Charging notice | ![Charging notice with battery level](assets/screenshots/notice-charging.png) |
 | Charger disconnected | ![Charger disconnected notice](assets/screenshots/notice-disconnected.png) |
 | Volume notice | ![Output volume notice](assets/screenshots/notice-volume.png) |
@@ -51,7 +52,7 @@ These images show representative UI states with sample media, files, notificatio
 - To-do also shows a daily summary: scheduled tasks with the next time, tasks completed today, focus minutes, and a Copy report action that puts a plain text report on the clipboard.
 - At 08:00 the island can show a morning agenda notice with today's scheduled tasks, and at 17:00 a recap of completed tasks and focus minutes. Clicking either notice opens the matching page. Both are toggled under Daily agenda in Settings.
 - Notes is a local scratchpad with a list on the left and a wrapping editor on the right. The first line becomes the row title, **Enter** starts a new line, **Escape** leaves the editor, and text saves to `notes.json` shortly after typing stops. Deleting a note leaves a seven second Undo row, and empty notes are dropped when the page is left.
-- Settings are split into **Island**, **Greeting**, **Music**, **Reminders**, **Notifications**, and **Tabs** side sections. They control themes, Notch/Pill shape, browser tuck, resting style, glass, accent color, notices, app notification filters, smart music detection, keep awake, greeting text and name, reminders, and visible page tabs.
+- Settings are split into **Island**, **Greeting**, **Music**, **Reminders**, **Notifications**, **Tabs**, and **Data** side sections. They control themes, Notch/Pill shape, browser tuck, resting style, glass, accent color, notices, app notification filters, smart music detection, keep awake, greeting text and name, reminders, visible page tabs, and backup and restore.
 - Drag tabs to change their order; the chosen order persists and the first visible tab becomes the default page when opening the island. Drag the island by its resting pill or open header to place it at the top, bottom, left, right, or a free position. Settings → Island also has position choices.
 - Page changes, tab selection, playback progress, focus ring, notices, and controls use short transitions and follow GNOME's reduced-motion preference.
 - Keep awake asks GNOME's session manager for idle and suspend inhibitors while it is on. The switch is under Island and the inhibitor is released as soon as it is turned off or the extension is disabled.
@@ -61,6 +62,7 @@ These images show representative UI states with sample media, files, notificatio
 - The Reminders page lists the five prayer times for today, marks the next one, dims the ones that have passed, and shows the water countdown with a Log glass action. Tapping a water or prayer notice opens the page. Refresh re-fetches the times when the city or the connection changes.
 - Today combines a local calendar with available CPU, memory, disk, and battery information.
 - Notifications lists recent desktop notifications, uses the source application's icon when available, and can activate or clear them.
+- **Settings → Data** saves tasks, notes, settings, and focus history to one plain JSON file through the desktop file chooser, and restores that file on another machine. Clipboard history and Shelf files are left out on purpose; they stay on the device. Before a restore, the current data is copied to `pre-restore.json`, and the file is checked before anything is replaced.
 - Session greetings show a customizable first-use welcome and a returning greeting on later desktop login sessions. Choose the Linux account name, device name, or a custom name; edit both messages with `{name}` as the insertion token; preview either message from Settings. Greetings can be disabled independently of other system notices.
 - Charging, charger disconnect, output-volume changes, hardware brightness changes, and completed focus sessions can show short notices.
 
@@ -93,7 +95,7 @@ Quick install from this repository:
 
 ```sh
 mkdir -p dist
-gnome-extensions pack ./extension --extra-source=../LICENSE --extra-source=clipboard-utils.js --out-dir ./dist
+gnome-extensions pack ./extension --extra-source=../LICENSE --extra-source=clipboard-utils.js --extra-source=music-classifier.js --extra-source=backup-utils.js --out-dir ./dist
 gnome-extensions install --force ./dist/perdana.island@perdana.shell-extension.zip
 gnome-extensions enable perdana.island@perdana
 ```
@@ -113,7 +115,7 @@ Click the island to open it. When media or a focus timer is active, hovering ove
 
 ## Data and limitations
 
-Tasks, notes, preferences, clipboard history, and Shelf files are stored in `~/.local/share/perdana.island/`. Task data is reconciled with `~/.local/share/pulo-island/tasks.json` and synchronized to both locations, so changes survive switching between the old and new extension UUIDs. Shelf files are copied from the previous location when a matching destination file is absent. Clipboard history is stored locally with user-only permissions and limited to four unique entries. It is monitored while the extension is enabled; repeated copies do not create duplicate rows. Clipboard text is not sent to third parties. LRCLIB lyric lookup sends the current track title, artist, optional album, and duration to `lrclib.net`.
+Tasks, notes, preferences, focus history, clipboard history, and Shelf files are stored in `~/.local/share/perdana.island/`. Backups are plain JSON and include tasks, notes, preferences, and focus history; clipboard history and Shelf files are not included. Task data is reconciled with `~/.local/share/pulo-island/tasks.json` and synchronized to both locations, so changes survive switching between the old and new extension UUIDs. Shelf files are copied from the previous location when a matching destination file is absent. Clipboard history is stored locally with user-only permissions and limited to four unique entries. It is monitored while the extension is enabled; repeated copies do not create duplicate rows. Clipboard text is not sent to third parties. LRCLIB lyric lookup sends the current track title, artist, optional album, and duration to `lrclib.net`.
 
 GNOME Shell does not provide the dragged desktop file list to these island actors. Add files through **Add files**, or copy them into the Shelf folder; direct drop onto the island is unavailable.
 

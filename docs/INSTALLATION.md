@@ -20,7 +20,7 @@ Run these commands from the repository root:
 
 ```sh
 mkdir -p dist
-gnome-extensions pack ./extension --extra-source=./LICENSE --extra-source=clipboard-utils.js --out-dir ./dist
+gnome-extensions pack ./extension --extra-source=./LICENSE --extra-source=clipboard-utils.js --extra-source=music-classifier.js --extra-source=backup-utils.js --out-dir ./dist
 gnome-extensions install --force ./dist/perdana.island@perdana.shell-extension.zip
 gnome-extensions enable perdana.island@perdana
 ```
@@ -34,7 +34,7 @@ If `perdana.island@perdana` is not listed immediately after installing it, GNOME
 Pack and install a fresh archive:
 
 ```sh
-gnome-extensions pack ./extension --extra-source=clipboard-utils.js --out-dir ./dist
+gnome-extensions pack ./extension --extra-source=clipboard-utils.js --extra-source=music-classifier.js --extra-source=backup-utils.js --out-dir ./dist
 gnome-extensions install --force ./dist/perdana.island@perdana.shell-extension.zip
 gnome-extensions disable perdana.island@perdana
 gnome-extensions enable perdana.island@perdana
@@ -84,7 +84,7 @@ The GNOME archive in a GitHub release is also the upload package for [extensions
 Before upload, build and inspect the GNOME archive:
 
 ```sh
-gnome-extensions pack ./extension --extra-source=./LICENSE --extra-source=clipboard-utils.js --out-dir ./dist
+gnome-extensions pack ./extension --extra-source=./LICENSE --extra-source=clipboard-utils.js --extra-source=music-classifier.js --extra-source=backup-utils.js --out-dir ./dist
 unzip -l ./dist/perdana.island@perdana.shell-extension.zip
 ```
 
